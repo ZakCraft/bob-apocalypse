@@ -446,6 +446,30 @@ function begin() {
 $('start').onclick = begin;
 $('again').onclick = begin;
 
+/* ---------- pause ---------- */
+function pauseGame() {
+  if (G.state !== 'play') return;
+  G.state = 'paused';
+  for (const k in keys) keys[k] = false;
+  $('pause').style.display = 'flex';
+  if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
+}
+function resumeGame() {
+  if (G.state !== 'paused') return;
+  G.state = 'play';
+  $('pause').style.display = 'none';
+  last = performance.now();
+  try { renderer.domElement.requestPointerLock(); } catch (_) {}
+}
+function togglePause() { G.state === 'paused' ? resumeGame() : pauseGame(); }
+addEventListener('keydown', e => { if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) togglePause(); });
+// Esc releases the mouse in the browser, so losing the lock mid-fight pauses too
+document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && G.state === 'play') pauseGame(); });
+addEventListener('blur', pauseGame);
+$('resume').onclick = resumeGame;
+$('restart').onclick = () => { $('pause').style.display = 'none'; begin(); };
+$('pausebtn').onclick = pauseGame;
+
 /* ---------- combat ---------- */
 const ATK = {
   punch: { dur: 0.36, hitAt: 0.12, dmg: 10, range: 2.3, kb: 6, stun: 0.3 },
@@ -763,6 +787,7 @@ let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (G.state === 'paused') { renderer.render(scene, camera); return; }
   G.time += dt;
   if (G.state !== 'menu') {
     updatePlayer(dt);

@@ -40,7 +40,8 @@
   <div id="combo"></div>
   <div id="banner"></div>
   <div id="cross"></div>
-  <div id="help">WASD move &bull; Mouse look &bull; Click / J punch &bull; Right-click / K kick &bull; Space jump &bull; Shift block &bull; Esc free mouse</div>
+  <button id="pausebtn" style="position:absolute;right:20px;bottom:40px;pointer-events:auto;font:20px Impact,sans-serif;letter-spacing:2px;padding:6px 16px;border:3px solid #fff;border-radius:8px;background:rgba(0,0,0,.45);color:#fff;cursor:pointer">PAUSE (P)</button>
+  <div id="help">WASD move &bull; Mouse look &bull; Click / J punch &bull; Right-click / K kick &bull; Space jump &bull; Shift block &bull; P / Esc pause</div>
 </div>
 
 <div id="menu" class="overlay">
@@ -52,6 +53,14 @@
     <b>Left click / J</b> punch &nbsp;&bull;&nbsp; <b>Right click / K</b> kick (heavy hit) &nbsp;&bull;&nbsp; <b>Shift</b> block<br>
     Grab the green <b>+</b> health packs. Survive every wave. Beat MEGA BOB.
   </div>
+</div>
+
+<div id="pause" class="overlay" style="display:none">
+  <h1>PAUSED</h1>
+  <h2>THE BOBS ARE WAITING. SUSPICIOUSLY.</h2>
+  <button id="resume">RESUME</button>
+  <button id="restart" style="margin-top:16px;font-size:22px;padding:8px 32px;background:#444;box-shadow:0 5px 0 #111">RESTART</button>
+  <div class="controls"><b>P</b> or <b>Esc</b> pause / resume</div>
 </div>
 
 <div id="over" class="overlay">
