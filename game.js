@@ -349,21 +349,65 @@ player.fighter.armR.add(weaponGroup);
 const TYPES = {
   bob:   { name: 'BOB',        hp: 40,  spd: 3.2, dmg: 8,  scale: 1.0, score: 100,  windup: 0.55, col: '#ffffff' },
   fast:  { name: 'SPEEDY BOB', hp: 25,  spd: 5.4, dmg: 5,  scale: 0.9, score: 150,  windup: 0.35, col: '#7affff' },
+  flyer: { name: 'FLYING BOB', hp: 35,  spd: 4.5, dmg: 10, scale: 0.95, score: 200, windup: 0.6, col: '#d0b0ff', flying: true },
   big:   { name: 'BIG BOB',    hp: 130, spd: 2.2, dmg: 18, scale: 1.5, score: 300,  windup: 0.85, col: '#ffb060' },
   boss:  { name: 'MEGA BOB',   hp: 480, spd: 2.9, dmg: 26, scale: 2.3, score: 2000, windup: 0.8,  col: '#ff4040' },
 };
 const SHIRTS = [0xd8321a, 0xe8b020, 0x3aa84a, 0x9a4ad0, 0xe87a1a, 0x20b0b0, 0xd0d0d0];
+
+function addWings(f) {
+  f.wings = [];
+  const mat = new THREE.MeshStandardMaterial({ color: 0xe8e0ff, roughness: 0.5, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+  for (const s of [-1, 1]) {
+    const piv = new THREE.Group(); piv.position.set(s * 0.2, 1.6, -0.28); f.inner.add(piv);
+    const w = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), mat);
+    w.scale.set(0.8, 0.05, 0.42); w.position.set(s * 0.8, 0.25, -0.1); piv.add(w);
+    f.wings.push(piv);
+  }
+}
+// Flying Bob: circles overhead, telegraphs, then dive-bombs in a straight line (sidestep it!)
+function flyerAI(e, dt, dx, dz, dist, nx, nz, pp, o) {
+  const pos = e.f.g.position;
+  e.st += dt;
+  if (!['hover', 'dive', 'climb'].includes(e.state)) { e.state = 'hover'; e.st = 0; e.dur = rand(1.0, 2.0); }
+  if (e.state === 'hover') {
+    e.face = turnToward(e.face, Math.atan2(nx, nz), 8 * dt);
+    if (!e.dur) e.dur = rand(1.2, 2.6);
+    const a = Math.atan2(pos.z - pp.z, pos.x - pp.x) + e.strafe * 1.1 * dt;
+    const tx = pp.x + Math.cos(a) * 6, tz = pp.z + Math.sin(a) * 6;
+    const mx = tx - pos.x, mz = tz - pos.z, md = Math.hypot(mx, mz) || 1, sp = Math.min(e.t.spd, md * 3);
+    pos.x += mx / md * sp * dt; pos.z += mz / md * sp * dt;
+    pos.y += (2.2 + Math.sin(G.time * 3 + e.strafe) * 0.3 - pos.y) * Math.min(1, 4 * dt);
+    if (e.st > e.dur - 0.45) o.windup = Math.min(1, (e.st - (e.dur - 0.45)) / 0.45);
+    if (e.st >= e.dur) { e.state = 'dive'; e.st = 0; e.hitDone = false; e.dvx = nx; e.dvz = nz; sfx(700, 0.3, 'sawtooth', 0.07, -400); }
+  } else if (e.state === 'dive') {
+    e.face = Math.atan2(e.dvx, e.dvz);
+    o.strike = 0.6;
+    pos.x += e.dvx * 13 * dt; pos.z += e.dvz * 13 * dt;
+    pos.y += (0.3 - pos.y) * Math.min(1, 7 * dt);
+    if (!e.hitDone && dist < 1.7 && pp.y < 1.6 && pos.y < 1.8) { e.hitDone = true; hurtPlayer(e.t.dmg, pos); }
+    if (e.st > 0.85) { e.state = 'climb'; e.st = 0; }
+  } else {
+    o.windup = 0.3;
+    pos.y = Math.min(2.4, pos.y + 5 * dt);
+    pos.x += e.dvx * 3 * dt; pos.z += e.dvz * 3 * dt;
+    if (e.st > 0.7) { e.state = 'hover'; e.st = 0; e.dur = rand(1.5, 2.8); }
+  }
+  pos.x = clamp(pos.x, -BOUND, BOUND); pos.z = clamp(pos.z, -BOUND, BOUND);
+}
 
 function spawnEnemy(typeKey) {
   const t = TYPES[typeKey];
   const f = makeFighter({ skin: typeKey === 'boss' ? 0xc07050 : 0xe8b888, shirt: typeKey === 'boss' ? 0x601010 : SHIRTS[Math.floor(Math.random() * SHIRTS.length)], pants: 0x3a3a48, scale: t.scale, angry: true });
   const a = rand(0, Math.PI * 2), r = rand(28, 36);
   f.g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+  if (t.flying) addWings(f);
   const radius = 0.5 * t.scale;
   pushOut(f.g.position, radius);
+  if (t.flying) f.g.position.y = 2.2;
   const bar = healthBar(), label = labelSprite(t.name, t.col);
   scene.add(bar); scene.add(label);
-  const e = { t, f, hp: t.hp, max: t.hp, vel: new THREE.Vector3(), stun: 0, state: 'chase', st: 0, dur: 0, face: 0, radius, reach: 1.3 + 0.55 * t.scale, bar, label, dead: false, deadT: 0, hitDone: false, strafe: Math.random() < 0.5 ? 1 : -1, flashT: 0 };
+  const e = { t, f, hp: t.hp, max: t.hp, vel: new THREE.Vector3(), stun: 0, state: t.flying ? 'hover' : 'chase', st: 0, dur: 0, face: 0, radius, reach: 1.3 + 0.55 * t.scale, bar, label, dead: false, deadT: 0, hitDone: false, strafe: Math.random() < 0.5 ? 1 : -1, flashT: 0 };
   e.face = Math.atan2(-f.g.position.x, -f.g.position.z);
   enemies.push(e);
   burst(f.g.position.clone().setY(1), 0xffaa40, 10, 3);
@@ -551,8 +595,9 @@ function buildWave(n) {
   const count = 3 + n * 2;
   for (let i = 0; i < count; i++) {
     const r = Math.random();
-    q.push(n >= 3 && r < 0.18 ? 'big' : n >= 2 && r < 0.45 ? 'fast' : 'bob');
+    q.push(n >= 3 && r < 0.15 ? 'big' : n >= 2 && r < 0.35 ? 'fast' : r > 0.78 ? 'flyer' : 'bob');
   }
+  if (n <= 2) q[Math.min(2, q.length - 1)] = 'flyer';   // early waves always show you one
   if (n % 5 === 0) { q.length = Math.floor(q.length / 2); q.unshift('boss'); }
   return q;
 }
@@ -849,7 +894,8 @@ function updateEnemies(dt) {
       pose(e.f, dt, 0, { flail: e.deadT < 0.3 });
       g.rotation.x = Math.max(-Math.PI / 2, g.rotation.x - dt * 5);
       pos.x += e.vel.x * dt; pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.max(0, 1 - 6 * dt));
-      if (e.deadT > 1.2) pos.y -= dt * 1.5;
+      if (pos.y > 0 && e.deadT < 1.2) pos.y = Math.max(0, pos.y - dt * 14);
+      else if (e.deadT > 1.2) pos.y -= dt * 1.5;
       if (e.deadT > 2.2) { scene.remove(g); enemies.splice(i, 1); }
       continue;
     }
@@ -860,6 +906,9 @@ function updateEnemies(dt) {
 
     if (e.stun > 0) {
       e.stun -= dt; o.flail = true;
+      if (e.t.flying) pos.y = Math.max(0.2, pos.y - 6 * dt);   // stunned flyers drop out of the sky
+    } else if (!player.dead && e.t.flying) {
+      flyerAI(e, dt, dx, dz, dist, nx, nz, pp, o);
     } else if (!player.dead) {
       if (e.state === 'chase') {
         e.face = turnToward(e.face, Math.atan2(nx, nz), 8 * dt);
@@ -900,11 +949,15 @@ function updateEnemies(dt) {
     }
     // keep out of the player
     if (dist < e.radius + 0.5) { pos.x -= nx * (e.radius + 0.5 - dist); pos.z -= nz * (e.radius + 0.5 - dist); }
-    pushOut(pos, e.radius);
+    if (!e.t.flying) pushOut(pos, e.radius);
     g.rotation.y = e.face;
     pose(e.f, dt, walk, o);
+    if (e.f.wings) {
+      const fl = 0.2 + Math.sin(G.time * 20 + e.strafe) * 0.55;
+      e.f.wings[0].rotation.z = -fl; e.f.wings[1].rotation.z = fl;
+    }
     // labels
-    const top = 2.9 * e.t.scale + 0.3;
+    const top = 2.9 * e.t.scale + 0.3 + pos.y;
     e.bar.position.set(pos.x, top, pos.z); e.bar.quaternion.copy(camera.quaternion);
     e.bar.fg.scale.x = Math.max(0.001, e.hp / e.max);
     e.label.position.set(pos.x, top + 0.45, pos.z);
