@@ -17,6 +17,8 @@
   #score{position:absolute;right:24px;top:16px;font-size:30px;text-shadow:3px 3px 0 #000;text-align:right}
   #combo{position:absolute;right:24px;top:62px;font-size:40px;color:#ffd24a;text-shadow:3px 3px 0 #000;text-align:right;opacity:0;transition:opacity .2s}
   #tool{position:absolute;left:20px;bottom:40px;font-size:26px;letter-spacing:2px;text-shadow:2px 2px 0 #000;color:#ffe9a0}
+  #weapon{position:absolute;left:20px;bottom:76px;font-size:26px;letter-spacing:2px;text-shadow:2px 2px 0 #000;color:#fff}
+  #weapon i{font-style:normal;font-size:20px;color:#ffd24a}
   #tool i{font-style:normal;font-size:16px;color:#fff;opacity:.8}
   #buffs{position:absolute;left:20px;top:78px;font-size:20px;letter-spacing:2px;text-shadow:2px 2px 0 #000;display:flex;flex-direction:column;gap:2px}
   #toast{position:absolute;top:22%;left:0;right:0;text-align:center;font-size:44px;letter-spacing:4px;text-shadow:4px 4px 0 #000;opacity:0;transition:opacity .25s}
@@ -42,13 +44,14 @@
   <div id="wave"><div id="wavenum">WAVE 1</div><div id="left"></div></div>
   <div id="score">0</div>
   <div id="combo"></div>
+  <div id="weapon"></div>
   <div id="tool"></div>
   <div id="buffs"></div>
   <div id="toast"></div>
   <div id="banner"></div>
   <div id="cross"></div>
   <button id="pausebtn" style="position:absolute;right:20px;bottom:40px;pointer-events:auto;font:20px Impact,sans-serif;letter-spacing:2px;padding:6px 16px;border:3px solid #fff;border-radius:8px;background:rgba(0,0,0,.45);color:#fff;cursor:pointer">PAUSE (P)</button>
-  <div id="help">WASD move &bull; Mouse look &bull; Click / J punch &bull; Right-click / K kick &bull; Space jump &bull; Shift block &bull; P / Esc pause</div>
+  <div id="help">WASD move &bull; Mouse look &bull; Click / J swing weapon &bull; Right-click / K kick &bull; Space jump &bull; Shift block &bull; P / Esc pause</div>
 </div>
 
 <div id="menu" class="overlay">
@@ -57,9 +60,11 @@
   <button id="start">FIGHT!</button>
   <div class="controls">
     <b>WASD</b> move &nbsp;&bull;&nbsp; <b>Mouse</b> look (or <b>Q/E</b>, arrows) &nbsp;&bull;&nbsp; <b>Space</b> jump<br>
-    <b>Left click / J</b> punch &nbsp;&bull;&nbsp; <b>Right click / K</b> kick (heavy hit) &nbsp;&bull;&nbsp; <b>Shift</b> block<br>
+    <b>Left click / J</b> swing weapon &nbsp;&bull;&nbsp; <b>Right click / K</b> kick &nbsp;&bull;&nbsp; <b>Shift</b> block<br>
     Bobs drop powerups: <b style="color:#40ff60">HEAL</b> &bull; <b style="color:#ff5050">RAGE</b> (2x damage) &bull; <b style="color:#30c0ff">TURBO</b> (speed) &bull; <b style="color:#ffd030">SHIELD</b> (invincible) &bull; <b style="color:#ff8020">BOOM</b> (shockwave)<br>
-    <b>Tool crates</b> (brown boxes) appear every wave and drop from Bobs: <b>BAT</b> (click to smash) &bull; <b>BRICKS</b> &amp; <b>GRENADES</b> (press <b>F</b> to throw) &bull; <b>STUN GUN</b> (press <b>F</b>)<br>
+    <b>Tool crates</b> (brown boxes) appear every wave and drop from Bobs: <b>BRICKS</b> &amp; <b>GRENADES</b> (press <b>F</b> to throw) &bull; <b>STUN GUN</b> (press <b>F</b>)<br>
+    You start with a <b>BASEBALL BAT</b>. Grab gold <b style="color:#ffdd33">UPGRADE</b> orbs (every 2nd wave, and from MEGA BOB):<br>
+    Bat &rarr; <b>Katana</b> &rarr; <b>Battle Axe</b> &rarr; <b>Chainsaw</b> &rarr; <b>Energy Sword</b><br>
     Survive every wave. Beat MEGA BOB.
   </div>
 </div>
