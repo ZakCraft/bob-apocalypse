@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bob Apocalypse</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Impact,'Arial Black',sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+  canvas{display:block}
+  #hud{position:fixed;inset:0;pointer-events:none;display:none}
+  .bar{position:absolute;left:20px;top:20px;width:320px;height:26px;background:#2a0d0d;border:3px solid #fff;border-radius:6px;overflow:hidden;box-shadow:0 3px 0 #000}
+  #hpfill{height:100%;width:100%;background:linear-gradient(#5fe36a,#27a834);transition:width .1s}
+  #hplabel{position:absolute;left:20px;top:52px;font-size:14px;letter-spacing:2px;text-shadow:2px 2px 0 #000}
+  #wave{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:30px;letter-spacing:3px;text-shadow:3px 3px 0 #000;text-align:center}
+  #left{font-size:15px;color:#ffd24a;letter-spacing:2px}
+  #score{position:absolute;right:24px;top:16px;font-size:30px;text-shadow:3px 3px 0 #000;text-align:right}
+  #combo{position:absolute;right:24px;top:62px;font-size:40px;color:#ffd24a;text-shadow:3px 3px 0 #000;text-align:right;opacity:0;transition:opacity .2s}
+  #banner{position:absolute;top:32%;left:0;right:0;text-align:center;font-size:72px;letter-spacing:6px;text-shadow:5px 5px 0 #000;color:#ff5a2a;opacity:0;transition:opacity .4s}
+  #help{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:Arial,sans-serif;font-size:13px;opacity:.75;text-shadow:1px 1px 0 #000}
+  #cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.5)}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at center,rgba(60,10,0,.55),rgba(0,0,0,.88));z-index:5}
+  .overlay h1{font-size:clamp(48px,10vw,120px);margin:0;letter-spacing:6px;color:#ff5a2a;text-shadow:0 6px 0 #5a1500,0 0 40px #ff3a00}
+  .overlay h2{font-size:22px;margin:6px 0 26px;letter-spacing:5px;color:#ffd24a;font-weight:normal}
+  .overlay button{font-family:inherit;font-size:34px;letter-spacing:4px;padding:14px 48px;border:4px solid #fff;border-radius:10px;background:#d8321a;color:#fff;cursor:pointer;box-shadow:0 6px 0 #6b1408}
+  .overlay button:hover{background:#ff4a2a}
+  .overlay button:active{transform:translateY(4px);box-shadow:0 2px 0 #6b1408}
+  .controls{margin-top:30px;font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#eee;background:rgba(0,0,0,.4);padding:12px 24px;border-radius:8px}
+  .controls b{color:#ffd24a}
+  #over{display:none}
+  #final{font-size:26px;margin-bottom:22px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="bar"><div id="hpfill"></div></div>
+  <div id="hplabel">YOU &mdash; <span id="hp">100</span> HP</div>
+  <div id="wave"><div id="wavenum">WAVE 1</div><div id="left"></div></div>
+  <div id="score">0</div>
+  <div id="combo"></div>
+  <div id="banner"></div>
+  <div id="cross"></div>
+  <div id="help">WASD move &bull; Mouse look &bull; Click / J punch &bull; Right-click / K kick &bull; Space jump &bull; Shift block &bull; Esc free mouse</div>
+</div>
+
+<div id="menu" class="overlay">
+  <h1>BOB APOCALYPSE</h1>
+  <h2>THE TOWN IS OVERRUN. THEY ARE ALL NAMED BOB.</h2>
+  <button id="start">FIGHT!</button>
+  <div class="controls">
+    <b>WASD</b> move &nbsp;&bull;&nbsp; <b>Mouse</b> look (or <b>Q/E</b>, arrows) &nbsp;&bull;&nbsp; <b>Space</b> jump<br>
+    <b>Left click / J</b> punch &nbsp;&bull;&nbsp; <b>Right click / K</b> kick (heavy hit) &nbsp;&bull;&nbsp; <b>Shift</b> block<br>
+    Grab the green <b>+</b> health packs. Survive every wave. Beat MEGA BOB.
+  </div>
+</div>
+
+<div id="over" class="overlay">
+  <h1>YOU GOT BOBBED</h1>
+  <h2>THE APOCALYPSE CONTINUES WITHOUT YOU</h2>
+  <div id="final"></div>
+  <button id="again">TRY AGAIN</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>window.THREE||document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"><\/script>')</script>
+<script>
+  // show any startup problem on screen instead of failing silently
+  function showErr(msg){var d=document.getElementById('err');if(!d){d=document.createElement('div');d.id='err';d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;background:#600;color:#fff;font:14px Arial;padding:10px 16px;white-space:pre-wrap';document.body.appendChild(d);}d.textContent+=msg+'\n';}
+  window.addEventListener('error',function(e){showErr('Error: '+e.message+(e.lineno?' (line '+e.lineno+')':''));});
+  if(!window.THREE)showErr('Three.js failed to load (no internet, or the CDN is blocked). The game needs it.');
+</script>
+<script src="game.js"></script>
+</body>
+</html>
