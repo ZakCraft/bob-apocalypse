@@ -361,7 +361,7 @@ function addWings(f) {
   for (const s of [-1, 1]) {
     const piv = new THREE.Group(); piv.position.set(s * 0.2, 1.6, -0.28); f.inner.add(piv);
     const w = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), mat);
-    w.scale.set(0.8, 0.05, 0.42); w.position.set(s * 0.8, 0.25, -0.1); piv.add(w);
+    w.scale.set(1.1, 0.06, 0.55); w.position.set(s * 1.05, 0.25, -0.1); piv.add(w);
     f.wings.push(piv);
   }
 }
@@ -398,7 +398,7 @@ function flyerAI(e, dt, dx, dz, dist, nx, nz, pp, o) {
 
 function spawnEnemy(typeKey) {
   const t = TYPES[typeKey];
-  const f = makeFighter({ skin: typeKey === 'boss' ? 0xc07050 : 0xe8b888, shirt: typeKey === 'boss' ? 0x601010 : SHIRTS[Math.floor(Math.random() * SHIRTS.length)], pants: 0x3a3a48, scale: t.scale, angry: true });
+  const f = makeFighter({ skin: typeKey === 'boss' ? 0xc07050 : 0xe8b888, shirt: t.flying ? 0x7a3ad0 : typeKey === 'boss' ? 0x601010 : SHIRTS[Math.floor(Math.random() * SHIRTS.length)], pants: 0x3a3a48, scale: t.scale, angry: true });
   const a = rand(0, Math.PI * 2), r = rand(28, 36);
   f.g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
   if (t.flying) addWings(f);
@@ -597,7 +597,7 @@ function buildWave(n) {
     const r = Math.random();
     q.push(n >= 3 && r < 0.15 ? 'big' : n >= 2 && r < 0.35 ? 'fast' : r > 0.78 ? 'flyer' : 'bob');
   }
-  if (n <= 2) q[Math.min(2, q.length - 1)] = 'flyer';   // early waves always show you one
+  if (n <= 2) q[0] = 'flyer';   // early waves open with a Flying Bob so you can't miss it
   if (n % 5 === 0) { q.length = Math.floor(q.length / 2); q.unshift('boss'); }
   return q;
 }

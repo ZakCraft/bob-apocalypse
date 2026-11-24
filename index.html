@@ -58,6 +58,7 @@
   <h1>BOB APOCALYPSE</h1>
   <h2>THE TOWN IS OVERRUN. THEY ARE ALL NAMED BOB.</h2>
   <button id="start">FIGHT!</button>
+  <div style="margin-top:10px;font:12px Arial,sans-serif;opacity:.6">build 7 &mdash; includes Flying Bobs (if you don't see "build 7", hard refresh with Ctrl+F5)</div>
   <div class="controls">
     <b>WASD</b> move &nbsp;&bull;&nbsp; <b>Mouse</b> look (or <b>Q/E</b>, arrows) &nbsp;&bull;&nbsp; <b>Space</b> jump<br>
     <b>Left click / J</b> swing weapon &nbsp;&bull;&nbsp; <b>Right click / K</b> kick &nbsp;&bull;&nbsp; <b>Shift</b> block<br>
@@ -93,6 +94,6 @@
   window.addEventListener('error',function(e){showErr('Error: '+e.message+(e.lineno?' (line '+e.lineno+')':''));});
   if(!window.THREE)showErr('Three.js failed to load (no internet, or the CDN is blocked). The game needs it.');
 </script>
-<script src="game.js"></script>
+<script src="game.js?v=7"></script>
 </body>
 </html>
