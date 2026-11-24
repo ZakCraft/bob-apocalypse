@@ -338,10 +338,12 @@ const keys = {};
 let yaw = Math.PI * 0.25, pitch = 0.35;
 const enemies = [], packs = [];
 
-const player = { fighter: null, buffs: { rage: 0, speed: 0, shield: 0 }, hp: 100, max: 100, vel: new THREE.Vector3(), vy: 0, face: 0, atk: null, alt: 0, inv: 0, block: false, dead: false, flashT: 0, grounded: true };
+const player = { fighter: null, tool: null, toolCd: 0, throwT: 0, buffs: { rage: 0, speed: 0, shield: 0 }, hp: 100, max: 100, vel: new THREE.Vector3(), vy: 0, face: 0, atk: null, alt: 0, inv: 0, block: false, dead: false, flashT: 0, grounded: true };
 player.fighter = makeFighter({ skin: 0xf0c090, shirt: 0x2f6fe0, pants: 0x1c2a55, scale: 1 });
 const shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffd030, transparent: true, opacity: 0.28, depthWrite: false }));
 shieldMesh.position.y = 1.2; shieldMesh.visible = false; player.fighter.g.add(shieldMesh);
+const batMesh = mesh(capsuleGeo(0.06, 0.9), std(0xb07a3a), 0, -1.22, 0.03, player.fighter.armR);
+batMesh.visible = false;
 
 const TYPES = {
   bob:   { name: 'BOB',        hp: 40,  spd: 3.2, dmg: 8,  scale: 1.0, score: 100,  windup: 0.55, col: '#ffffff' },
@@ -374,19 +376,103 @@ const POWER = {
   nuke:   { color: 0xff8020, tag: 'BOOM',   text: 'SHOCKWAVE!',          w: 10 },
 };
 const shocks = [];
+
+/* ---------- tools ---------- */
+const TOOLS = {
+  bat:     { color: 0xc08040, tag: 'BAT',      text: 'BASEBALL BAT! CLICK TO SMASH', uses: 12 },
+  brick:   { color: 0xd05040, tag: 'BRICKS',   text: 'BRICKS! PRESS F TO THROW',     uses: 10 },
+  grenade: { color: 0x60d060, tag: 'GRENADES', text: 'GRENADES! PRESS F TO THROW',   uses: 3 },
+  taser:   { color: 0x60c8ff, tag: 'STUN GUN', text: 'STUN GUN! PRESS F TO ZAP',     uses: 5 },
+};
+const TOOL_KEYS = Object.keys(TOOLS);
+const projectiles = [];
+function pickDrop() { return Math.random() < 0.3 ? TOOL_KEYS[Math.floor(Math.random() * TOOL_KEYS.length)] : pickPower(); }
+function aimDir() { // camera forward, snapped to a Bob near the crosshair
+  let dx = -Math.sin(yaw), dz = -Math.cos(yaw), best = null, ba = 0.4;
+  const pp = player.fighter.g.position;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const ex = e.f.g.position.x - pp.x, ez = e.f.g.position.z - pp.z, d = Math.hypot(ex, ez);
+    if (d < 1 || d > 25) continue;
+    const ang = Math.acos(clamp((ex * dx + ez * dz) / d, -1, 1));
+    if (ang < ba) { ba = ang; best = [ex / d, ez / d]; }
+  }
+  return best || [dx, dz];
+}
+function useTool() {
+  const T = player.tool;
+  if (!T || T.type === 'bat' || player.dead || player.toolCd > 0 || G.state !== 'play') return;
+  const [dx, dz] = aimDir(), pp = player.fighter.g.position;
+  player.face = Math.atan2(dx, dz); player.throwT = 0.25; player.toolCd = 0.35;
+  if (T.type === 'taser') {
+    player.toolCd = 0.7;
+    sfx(900, 0.25, 'sawtooth', 0.08, -600);
+    for (let i = 1; i <= 6; i++) burst(new THREE.Vector3(pp.x + dx * i * 1.2, 1.4, pp.z + dz * i * 1.2), 0x80d8ff, 2, 2);
+    for (const e of enemies) {
+      if (e.dead) continue;
+      const ex = e.f.g.position.x - pp.x, ez = e.f.g.position.z - pp.z, d = Math.hypot(ex, ez);
+      if (d < 8 && (ex * dx + ez * dz) / (d || 1) > 0.55) {
+        damageEnemy(e, 8, ex / (d || 1), ez / (d || 1), 0, 0.1);
+        if (!e.dead) { e.stun = e.t.scale > 2 ? 1.2 : 3; e.vel.set(0, 0, 0); burst(e.f.g.position.clone().setY(1.5 * e.t.scale), 0x80d8ff, 14, 4); }
+      }
+    }
+  } else {
+    const brick = T.type === 'brick';
+    const m = brick
+      ? new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.2, 0.18), new THREE.MeshStandardMaterial({ color: 0xa04030, roughness: 0.9 }))
+      : new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x3a6a30, roughness: 0.5 }));
+    m.castShadow = true; m.position.set(pp.x + dx * 0.8, pp.y + 1.6, pp.z + dz * 0.8); scene.add(m);
+    projectiles.push({ m, type: T.type, t: 0, v: new THREE.Vector3(dx * (brick ? 22 : 13), brick ? 3 : 7, dz * (brick ? 22 : 13)) });
+    S.swing();
+  }
+  if (--T.uses <= 0) { player.tool = null; toast('OUT OF ' + TOOLS[T.type].tag, 0xcccccc); }
+}
+function explode(pos) {
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.f.g.position.x - pos.x, dz = e.f.g.position.z - pos.z, d = Math.hypot(dx, dz);
+    if (d < 6.5) damageEnemy(e, 45, dx / (d || 1), dz / (d || 1), 14, 0.6);
+  }
+  burst(pos.clone().setY(1), 0xffa030, 30, 7); burst(pos.clone().setY(1), 0x444444, 12, 4);
+  G.shake = Math.max(G.shake, 0.7); S.heavy();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(pos.x, 0.15, pos.z); scene.add(ring); shocks.push({ m: ring, t: 0, k: 10 });
+}
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i], pos = p.m.position, grenade = p.type === 'grenade';
+    p.t += dt; p.v.y -= (grenade ? 24 : 18) * dt;
+    pos.addScaledVector(p.v, dt); p.m.rotation.x += dt * 12; p.m.rotation.z += dt * 7;
+    let done = false;
+    if (pos.y < 0.2) { pos.y = 0.2; if (grenade) { p.v.y = Math.abs(p.v.y) * 0.4; p.v.x *= 0.6; p.v.z *= 0.6; } else done = true; }
+    if (Math.abs(pos.x) > BOUND + 1 || Math.abs(pos.z) > BOUND + 1) { if (grenade) { p.v.x = p.v.z = 0; } else done = true; }
+    if (!done && obstacles.some(o => Math.abs(pos.x - o.x) < o.hw && Math.abs(pos.z - o.z) < o.hd && pos.y < 9)) { if (grenade) { p.v.x = p.v.z = 0; } else done = true; }
+    if (!done) for (const e of enemies) {
+      if (e.dead) continue;
+      const ep = e.f.g.position;
+      if (Math.hypot(ep.x - pos.x, ep.z - pos.z) < e.radius + 0.35 && pos.y < 2.8 * e.t.scale) {
+        if (!grenade) { const l = Math.hypot(p.v.x, p.v.z) || 1; damageEnemy(e, 18, p.v.x / l, p.v.z / l, 8, 0.35); }
+        done = true; break;
+      }
+    }
+    if (grenade && (p.t > 1.3 || done)) { explode(pos); done = true; }
+    else if (done) burst(pos.clone(), 0xc07050, 5, 3);
+    if (done) { scene.remove(p.m); projectiles.splice(i, 1); }
+  }
+}
 function pickPower() {
   let r = Math.random() * Object.values(POWER).reduce((s, p) => s + p.w, 0);
   for (const k in POWER) { r -= POWER[k].w; if (r <= 0) return k; }
   return 'heal';
 }
-function dropPack(pos, type) {
-  const P = POWER[type];
+function dropPack(pos, type, life = 20) {
+  const P = POWER[type] || TOOLS[type];
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 1), new THREE.MeshBasicMaterial({ color: P.color })));
+  g.add(new THREE.Mesh(TOOLS[type] ? new THREE.BoxGeometry(0.7, 0.7, 0.7) : new THREE.IcosahedronGeometry(0.38, 1), new THREE.MeshBasicMaterial({ color: P.color })));
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 8, 24), new THREE.MeshBasicMaterial({ color: P.color, transparent: true, opacity: 0.8 }));
   ring.rotation.x = Math.PI / 2; g.add(ring);
   const tag = labelSprite(P.tag, '#' + P.color.toString(16).padStart(6, '0')); tag.position.y = 1.0; g.add(tag);
-  g.userData = { type, life: 20 };
+  g.userData = { type, life };
   g.position.set(pos.x, 1.0, pos.z); scene.add(g); packs.push(g);
 }
 function toast(txt, color) {
@@ -405,11 +491,12 @@ function shockwave() {
   ring.rotation.x = -Math.PI / 2; ring.position.set(pp.x, 0.15, pp.z); scene.add(ring); shocks.push({ m: ring, t: 0 });
 }
 function collectPower(g) {
-  const type = g.userData.type, P = POWER[type];
+  const type = g.userData.type, P = POWER[type] || TOOLS[type];
   scene.remove(g);
   burst(g.position.clone(), P.color, 16, 4);
   S.pick();
-  if (type === 'heal') player.hp = Math.min(player.max, player.hp + 40);
+  if (TOOLS[type]) player.tool = { type, uses: P.uses };
+  else if (type === 'heal') player.hp = Math.min(player.max, player.hp + 40);
   else if (type === 'nuke') shockwave();
   else player.buffs[type] = P.dur;
   toast(P.text, P.color);
@@ -433,6 +520,12 @@ function startWave() {
   $('wavenum').textContent = 'WAVE ' + G.wave;
   showBanner(G.wave % 5 === 0 ? 'WAVE ' + G.wave + ' - MEGA BOB!' : 'WAVE ' + G.wave);
   S.wave();
+  { // a free tool crate somewhere in town each wave
+    const cp = { x: rand(-24, 24), z: rand(-24, 24) };
+    pushOut(cp, 1.2);
+    if (Math.abs(cp.x) < 5 && Math.abs(cp.z) < 5) cp.x = 9;
+    dropPack(cp, TOOL_KEYS[Math.floor(Math.random() * TOOL_KEYS.length)], 45);
+  }
 }
 
 function resetGame() {
@@ -443,6 +536,9 @@ function resetGame() {
   Object.assign(G, { wave: 0, score: 0, kills: 0, queue: [], waveWait: 0, pending: false, shake: 0, combo: 0, comboT: 0 });
   Object.assign(player, { hp: 100, atk: null, inv: 0, block: false, dead: false, vy: 0, grounded: true });
   player.buffs.rage = player.buffs.speed = player.buffs.shield = 0; shieldMesh.visible = false;
+  player.tool = null; player.toolCd = 0; player.throwT = 0;
+  for (const p of projectiles) scene.remove(p.m);
+  projectiles.length = 0;
   for (const s of shocks) scene.remove(s.m);
   shocks.length = 0;
   player.vel.set(0, 0, 0);
@@ -462,6 +558,7 @@ addEventListener('keydown', e => {
   if (G.state === 'play') {
     if (e.code === 'KeyJ') startAttack('punch');
     if (e.code === 'KeyK') startAttack('kick');
+    if (e.code === 'KeyF') useTool();
     if (e.code === 'Space' && player.grounded && !player.dead) { player.vy = 9.5; player.grounded = false; sfx(400, 0.12, 'triangle', 0.05, 200); }
   }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -522,11 +619,13 @@ $('pausebtn').onclick = pauseGame;
 const ATK = {
   punch: { dur: 0.36, hitAt: 0.12, dmg: 10, range: 2.3, kb: 6, stun: 0.3 },
   kick:  { dur: 0.58, hitAt: 0.22, dmg: 20, range: 2.7, kb: 12, stun: 0.5 },
+  bat:   { dur: 0.5, hitAt: 0.2, dmg: 28, range: 3.4, kb: 15, stun: 0.55 },
 };
 function startAttack(type) {
   if (player.atk || player.dead || G.state !== 'play') return;
-  const a = ATK[type];
-  player.atk = { type, a, t: 0, hit: false, arm: player.alt ^= 1 };
+  const bat = type === 'punch' && !!player.tool && player.tool.type === 'bat';
+  const a = bat ? ATK.bat : ATK[type];
+  player.atk = { type, a, bat, t: 0, hit: false, arm: bat ? 1 : (player.alt ^= 1) };
   // soft aim assist toward nearest bob
   const pp = player.fighter.g.position;
   let best = null, bd = 5;
@@ -558,8 +657,8 @@ function killEnemy(e) {
   burst(e.f.g.position.clone().setY(1.2 * e.t.scale), 0xff5a2a, 18, 5);
   scene.remove(e.bar); scene.remove(e.label);
   const dp = e.f.g.position;
-  if (e.t.name === 'MEGA BOB') { dropPack(dp, 'heal'); dropPack({ x: dp.x + 1.6, z: dp.z }, pickPower()); }
-  else if (Math.random() < 0.22) dropPack(dp, pickPower());
+  if (e.t.name === 'MEGA BOB') { dropPack(dp, 'heal'); dropPack({ x: dp.x + 1.6, z: dp.z }, pickDrop()); }
+  else if (Math.random() < 0.22) dropPack(dp, pickDrop());
   S.die();
 }
 function hurtPlayer(dmg, from) {
@@ -673,15 +772,21 @@ function updatePlayer(dt) {
         if (e.dead) continue;
         const dx = e.f.g.position.x - pos.x, dz = e.f.g.position.z - pos.z, d = Math.hypot(dx, dz);
         if (d < A.a.range + e.radius && (dx * fx + dz * fz) / (d || 1) > 0.25 && Math.abs(e.f.g.position.y - pos.y) < 2.5) {
-          damageEnemy(e, A.a.dmg * (player.buffs.rage > 0 ? 2 : 1), dx / (d || 1), dz / (d || 1), A.a.kb, A.a.stun); any = true;
+          damageEnemy(e, A.a.dmg * (player.buffs.rage > 0 ? 2 : 1), dx / (d || 1), dz / (d || 1), A.a.kb, A.a.stun); any = true; A.landed = true;
         }
       }
+    }
+    if (A.bat && A.landed && !A.spent && player.tool) {
+      A.spent = true;
+      if (--player.tool.uses <= 0) { player.tool = null; toast('BAT BROKE!', 0xcccccc); }
     }
     const p = A.t / A.a.dur;
     if (A.type === 'punch') o.punch = { p, arm: A.arm }; else o.kick = { p };
     if (A.t >= A.a.dur) player.atk = null;
   }
   if (player.block) o.block = true;
+  if (player.toolCd > 0) player.toolCd -= dt;
+  if (player.throwT > 0) { player.throwT -= dt; if (!player.atk) o.punch = { p: 1 - Math.max(0, player.throwT) / 0.25, arm: 1 }; }
   pose(f, dt, Math.hypot(player.vel.x, player.vel.z) * (player.grounded ? 1 : 0), o);
   f.g.rotation.y = player.face;
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
@@ -779,6 +884,8 @@ function updateWaves(dt) {
 }
 
 function updateMisc(dt) {
+  batMesh.visible = !!(player.tool && player.tool.type === 'bat');
+  updateProjectiles(dt);
   for (const p of parts) {
     if (!p.m.visible) continue;
     p.life -= dt;
@@ -799,7 +906,7 @@ function updateMisc(dt) {
   }
   for (let i = shocks.length - 1; i >= 0; i--) {
     const s = shocks[i]; s.t += dt;
-    s.m.scale.setScalar(1 + s.t * 20); s.m.material.opacity = Math.max(0, 0.8 * (1 - s.t / 0.6));
+    s.m.scale.setScalar(1 + s.t * (s.k || 20)); s.m.material.opacity = Math.max(0, 0.8 * (1 - s.t / 0.6));
     if (s.t > 0.6) { scene.remove(s.m); shocks.splice(i, 1); }
   }
   if (G.toastT > 0) { G.toastT -= dt; if (G.toastT <= 0) $('toast').style.opacity = 0; }
@@ -819,6 +926,8 @@ function updateHUD() {
   $('hpfill').style.width = pct + '%';
   $('hpfill').style.background = pct > 50 ? 'linear-gradient(#5fe36a,#27a834)' : pct > 25 ? 'linear-gradient(#ffd24a,#d8a010)' : 'linear-gradient(#ff5a4a,#c01a10)';
   $('hp').textContent = Math.ceil(player.hp);
+  const T = player.tool;
+  $('tool').innerHTML = T ? '<b>' + TOOLS[T.type].tag + '</b> x' + T.uses + ' <i>' + (T.type === 'bat' ? '[CLICK / J]' : '[F]') + '</i>' : '';
   const b = player.buffs;
   $('buffs').innerHTML = (b.rage > 0 ? '<span style="color:#ff6060">RAGE ' + Math.ceil(b.rage) + 's</span>' : '') +
     (b.speed > 0 ? '<span style="color:#50d0ff">TURBO ' + Math.ceil(b.speed) + 's</span>' : '') +
