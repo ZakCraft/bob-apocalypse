@@ -11,10 +11,30 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.25;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xd2623a);
+{ // sunset sky gradient
+  const c = document.createElement('canvas'); c.width = 8; c.height = 256;
+  const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#2a1228'); gr.addColorStop(0.45, '#8a3a3a'); gr.addColorStop(0.8, '#e0703a'); gr.addColorStop(1, '#f0a050');
+  x.fillStyle = gr; x.fillRect(0, 0, 8, 256);
+  scene.background = new THREE.CanvasTexture(c);
+}
+function noiseTex(base, spread, repeat) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 1800; i++) {
+    const v = Math.floor(Math.random() * spread * 2 - spread);
+    x.fillStyle = v > 0 ? 'rgba(255,255,255,' + (v / 255) + ')' : 'rgba(0,0,0,' + (-v / 255) + ')';
+    x.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat);
+  t.anisotropy = 4; return t;
+}
 scene.fog = new THREE.Fog(0xc4572f, 35, 115);
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 300);
 
@@ -56,9 +76,9 @@ function mesh(geo, mat, x, y, z, parent, shadow = true) {
 }
 
 // ground + roads
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), std(0x4a5a2c));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({ map: noiseTex('#4a5a2c', 60, 50), roughness: 1 }));
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-const roadMat = std(0x2b2b2e);
+const roadMat = new THREE.MeshStandardMaterial({ map: noiseTex('#2b2b2e', 40, 12), roughness: 0.95 });
 for (const [w, d] of [[100, 9], [9, 100]]) {
   const r = new THREE.Mesh(new THREE.PlaneGeometry(w, d), roadMat);
   r.rotation.x = -Math.PI / 2; r.position.y = 0.02; r.receiveShadow = true; scene.add(r);
@@ -79,8 +99,13 @@ plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.05; plaza.receiveShadow = 
 function building(x, z, w, d, h, c, rc) {
   const g = new THREE.Group();
   mesh(new THREE.BoxGeometry(w, h, d), std(c), 0, h / 2, 0, g);
-  mesh(new THREE.BoxGeometry(w + 0.8, 0.6, d + 0.8), std(rc), 0, h + 0.3, 0, g);
-  mesh(new THREE.BoxGeometry(1.2, 1.8, 1.2), std(0x555555), w * 0.25, h + 1.4, d * 0.2, g);
+  { // gable roof
+    const rh = Math.min(w, d) * 0.4, hw = w / 2 + 0.5;
+    const sh = new THREE.Shape(); sh.moveTo(-hw, 0); sh.lineTo(hw, 0); sh.lineTo(0, rh); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: d + 1, bevelEnabled: false }); geo.translate(0, 0, -(d + 1) / 2);
+    mesh(geo, std(rc), 0, h, 0, g);
+    mesh(new THREE.CylinderGeometry(0.45, 0.5, 2, 12), std(0x6a4a42), w * 0.25, h + rh * 0.6 + 0.6, d * 0.2, g);
+  }
   for (const s of [1, -1]) {
     const cols = Math.max(1, Math.floor(w / 3.2));
     for (let i = 0; i < cols; i++) {
@@ -108,13 +133,13 @@ function building(x, z, w, d, h, c, rc) {
 function tree(x, z) {
   const g = new THREE.Group();
   const dead = Math.random() < 0.5;
-  mesh(new THREE.CylinderGeometry(0.25, 0.4, 3, 6), std(0x4a3320), 0, 1.5, 0, g);
+  mesh(new THREE.CylinderGeometry(0.25, 0.4, 3, 12), std(0x4a3320), 0, 1.5, 0, g);
   if (!dead) {
-    mesh(new THREE.ConeGeometry(1.8, 3, 7), std(0x2f5a28), 0, 4, 0, g);
-    mesh(new THREE.ConeGeometry(1.3, 2.4, 7), std(0x3a6a30), 0, 5.4, 0, g);
+    for (const [cx, cy, cz, r, col] of [[0, 4.2, 0, 1.7, 0x2f5a28], [0.9, 3.7, 0.3, 1.2, 0x3a6a30], [-0.8, 3.8, -0.4, 1.3, 0x2a5224], [0.1, 5.4, 0, 1.2, 0x3a6a30]])
+      mesh(new THREE.SphereGeometry(r, 14, 10), std(col), cx, cy, cz, g);
   } else {
-    mesh(new THREE.CylinderGeometry(0.08, 0.15, 2, 5), std(0x3a2a1a), 0.7, 3.3, 0, g).rotation.z = -0.7;
-    mesh(new THREE.CylinderGeometry(0.08, 0.15, 1.8, 5), std(0x3a2a1a), -0.6, 3.2, 0, g).rotation.z = 0.8;
+    mesh(new THREE.CylinderGeometry(0.08, 0.15, 2, 8), std(0x3a2a1a), 0.7, 3.3, 0, g).rotation.z = -0.7;
+    mesh(new THREE.CylinderGeometry(0.08, 0.15, 1.8, 8), std(0x3a2a1a), -0.6, 3.2, 0, g).rotation.z = 0.8;
   }
   g.position.set(x, 0, z); scene.add(g);
   addBox(x, z, 0.5, 0.5);
@@ -130,8 +155,8 @@ for (let n = 0, placed = 0; placed < 22 && n < 400; n++) {
 const fires = [];
 function car(x, z, c, rotated) {
   const g = new THREE.Group();
-  mesh(new THREE.BoxGeometry(4.2, 0.9, 2), std(c), 0, 0.8, 0, g);
-  mesh(new THREE.BoxGeometry(2.2, 0.8, 1.8), std(0x222a33), -0.2, 1.6, 0, g);
+  mesh(new THREE.SphereGeometry(1, 20, 14), std(c, { roughness: 0.35, metalness: 0.4 }), 0, 0.85, 0, g).scale.set(2.2, 0.55, 1);
+  mesh(new THREE.SphereGeometry(1, 20, 14), std(0x222a33, { roughness: 0.2, metalness: 0.5 }), -0.2, 1.45, 0, g).scale.set(1.2, 0.5, 0.88);
   for (const sx of [-1.4, 1.4]) for (const sz of [-1, 1]) {
     const w = mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12), std(0x111111), sx, 0.45, sz, g);
     w.rotation.x = Math.PI / 2;
@@ -174,29 +199,69 @@ const embers = new THREE.Points(embGeo, new THREE.PointsMaterial({ color: 0xffa0
 scene.add(embers);
 
 /* ---------- fighters ---------- */
+function capsuleGeo(r, len, seg = 16) {
+  const pts = [], h = len / 2;
+  for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + i / 8 * Math.PI / 2; pts.push(new THREE.Vector2(Math.max(0.0001, Math.cos(a) * r), -h + Math.sin(a) * r)); }
+  for (let i = 0; i <= 8; i++) { const a = i / 8 * Math.PI / 2; pts.push(new THREE.Vector2(Math.max(0.0001, Math.cos(a) * r), h + Math.sin(a) * r)); }
+  return new THREE.LatheGeometry(pts, seg);
+}
 function makeFighter(o) {
   const g = new THREE.Group();
   g.rotation.order = 'YXZ';
   const inner = new THREE.Group(); g.add(inner);
-  const skin = std(o.skin), shirt = std(o.shirt), pants = std(o.pants);
-  const B = (w, h, d, m, x, y, z, p) => mesh(new THREE.BoxGeometry(w, h, d), m, x, y, z, p || inner);
-  B(0.75, 0.85, 0.42, shirt, 0, 1.32, 0);
-  const head = B(0.55, 0.55, 0.55, skin, 0, 1.98, 0);
-  const dark = new THREE.MeshBasicMaterial({ color: 0x111111 });
-  B(0.1, 0.12, 0.05, dark, -0.13, 2.02, 0.28);
-  B(0.1, 0.12, 0.05, dark, 0.13, 2.02, 0.28);
-  if (o.angry) {
-    const b1 = B(0.2, 0.05, 0.05, dark, -0.13, 2.14, 0.28); b1.rotation.z = -0.4;
-    const b2 = B(0.2, 0.05, 0.05, dark, 0.13, 2.14, 0.28); b2.rotation.z = 0.4;
-    B(0.25, 0.06, 0.05, dark, 0, 1.84, 0.28);
-    B(0.12, 0.12, 0.12, skin, 0, 2.32, 0);                 // tuft
-  } else {
-    B(0.25, 0.05, 0.05, dark, 0, 1.86, 0.28);
-    B(0.6, 0.12, 0.6, std(0xdd2222), 0, 2.15, 0);          // headband
+  const sm = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.65, metalness: 0.0 });
+  const skin = sm(o.skin), shirt = sm(o.shirt), pants = sm(o.pants);
+  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 });
+  const shoe = sm(0x1a1a1a);
+  const sph = (r, m, x, y, z, p, sx = 1, sy = 1, sz = 1) => {
+    const me = mesh(new THREE.SphereGeometry(r, 18, 14), m, x, y, z, p || inner);
+    me.scale.set(sx, sy, sz); return me;
+  };
+  const cap = (r, len, m, x, y, z, p, sx = 1, sz = 1) => {
+    const me = mesh(capsuleGeo(r, len), m, x, y, z, p || inner); me.scale.set(sx, 1, sz); return me;
+  };
+  // torso + hips (rounded)
+  cap(0.33, 0.32, shirt, 0, 1.3, 0, inner, 1.12, 0.78);
+  sph(0.3, pants, 0, 0.92, 0, inner, 1.1, 0.7, 0.8);
+  // neck + head
+  cap(0.1, 0.1, skin, 0, 1.78, 0);
+  const head = sph(0.3, skin, 0, 2.07, 0, inner, 1, 1.06, 1);
+  // ears + nose
+  sph(0.07, skin, -0.29, 2.06, 0, inner, 0.5, 1, 1); sph(0.07, skin, 0.29, 2.06, 0, inner, 0.5, 1, 1);
+  sph(0.055, skin, 0, 2.03, 0.3, inner, 1, 1, 1);
+  // eyes
+  for (const s of [-1, 1]) {
+    sph(0.075, white, s * 0.115, 2.12, 0.25, inner, 1, 1.1, 0.6);
+    sph(0.04, dark, s * 0.115, 2.12, 0.3, inner, 1, 1, 0.6);
   }
-  const leg = (x) => { const p = new THREE.Group(); p.position.set(x, 0.9, 0); inner.add(p); B(0.32, 0.9, 0.34, pants, 0, -0.45, 0, p); B(0.34, 0.15, 0.46, std(0x222222), 0, -0.85, 0.06, p); return p; };
-  const arm = (x) => { const p = new THREE.Group(); p.position.set(x, 1.68, 0); inner.add(p); B(0.26, 0.55, 0.26, shirt, 0, -0.27, 0, p); B(0.24, 0.3, 0.24, skin, 0, -0.65, 0, p); B(0.3, 0.26, 0.3, skin, 0, -0.85, 0.02, p); return p; };
-  const f = { g, inner, head, legL: leg(-0.2), legR: leg(0.2), armL: arm(-0.52), armR: arm(0.52), mats: [skin, shirt, pants], phase: 0 };
+  if (o.angry) {
+    for (const s of [-1, 1]) {
+      const b = cap(0.022, 0.12, dark, s * 0.12, 2.22, 0.27); b.rotation.z = Math.PI / 2 + s * 0.45;
+    }
+    sph(0.1, dark, 0, 1.96, 0.26, inner, 1, 0.3, 0.4);       // grumpy mouth
+    sph(0.07, skin, 0, 2.38, 0, inner);                        // lone hair tuft
+  } else {
+    sph(0.09, dark, 0, 1.97, 0.26, inner, 1, 0.25, 0.4);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.315, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), sm(0x2a1a10));
+    hair.position.set(0, 2.1, -0.02); hair.castShadow = true; inner.add(hair);
+    const band = mesh(new THREE.TorusGeometry(0.31, 0.04, 8, 24), sm(0xdd2222), 0, 2.2, 0, inner);
+    band.rotation.x = Math.PI / 2;
+  }
+  const leg = x => {
+    const p = new THREE.Group(); p.position.set(x, 0.9, 0); inner.add(p);
+    cap(0.15, 0.55, pants, 0, -0.45, 0, p);
+    sph(0.17, shoe, 0, -0.82, 0.07, p, 1, 0.62, 1.55);
+    return p;
+  };
+  const arm = x => {
+    const p = new THREE.Group(); p.position.set(x, 1.62, 0); inner.add(p);
+    sph(0.16, shirt, 0, 0, 0, p);
+    cap(0.105, 0.5, skin, 0, -0.38, 0, p);
+    sph(0.15, skin, 0, -0.82, 0.02, p);
+    return p;
+  };
+  const f = { g, inner, head, legL: leg(-0.2), legR: leg(0.2), armL: arm(-0.5), armR: arm(0.5), mats: [skin, shirt, pants], phase: 0 };
   g.scale.setScalar(o.scale || 1);
   scene.add(g);
   return f;
@@ -251,7 +316,7 @@ const S = {
 
 /* ---------- particles ---------- */
 const parts = [];
-const partGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+const partGeo = new THREE.SphereGeometry(0.1, 6, 5);
 for (let i = 0; i < 90; i++) {
   const m = new THREE.Mesh(partGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
   m.visible = false; scene.add(m);
