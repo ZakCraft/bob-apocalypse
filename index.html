@@ -16,6 +16,8 @@
   #left{font-size:15px;color:#ffd24a;letter-spacing:2px}
   #score{position:absolute;right:24px;top:16px;font-size:30px;text-shadow:3px 3px 0 #000;text-align:right}
   #combo{position:absolute;right:24px;top:62px;font-size:40px;color:#ffd24a;text-shadow:3px 3px 0 #000;text-align:right;opacity:0;transition:opacity .2s}
+  #buffs{position:absolute;left:20px;top:78px;font-size:20px;letter-spacing:2px;text-shadow:2px 2px 0 #000;display:flex;flex-direction:column;gap:2px}
+  #toast{position:absolute;top:22%;left:0;right:0;text-align:center;font-size:44px;letter-spacing:4px;text-shadow:4px 4px 0 #000;opacity:0;transition:opacity .25s}
   #banner{position:absolute;top:32%;left:0;right:0;text-align:center;font-size:72px;letter-spacing:6px;text-shadow:5px 5px 0 #000;color:#ff5a2a;opacity:0;transition:opacity .4s}
   #help{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-family:Arial,sans-serif;font-size:13px;opacity:.75;text-shadow:1px 1px 0 #000}
   #cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.5)}
@@ -38,6 +40,8 @@
   <div id="wave"><div id="wavenum">WAVE 1</div><div id="left"></div></div>
   <div id="score">0</div>
   <div id="combo"></div>
+  <div id="buffs"></div>
+  <div id="toast"></div>
   <div id="banner"></div>
   <div id="cross"></div>
   <button id="pausebtn" style="position:absolute;right:20px;bottom:40px;pointer-events:auto;font:20px Impact,sans-serif;letter-spacing:2px;padding:6px 16px;border:3px solid #fff;border-radius:8px;background:rgba(0,0,0,.45);color:#fff;cursor:pointer">PAUSE (P)</button>
@@ -51,7 +55,8 @@
   <div class="controls">
     <b>WASD</b> move &nbsp;&bull;&nbsp; <b>Mouse</b> look (or <b>Q/E</b>, arrows) &nbsp;&bull;&nbsp; <b>Space</b> jump<br>
     <b>Left click / J</b> punch &nbsp;&bull;&nbsp; <b>Right click / K</b> kick (heavy hit) &nbsp;&bull;&nbsp; <b>Shift</b> block<br>
-    Grab the green <b>+</b> health packs. Survive every wave. Beat MEGA BOB.
+    Bobs drop powerups: <b style="color:#40ff60">HEAL</b> &bull; <b style="color:#ff5050">RAGE</b> (2x damage) &bull; <b style="color:#30c0ff">TURBO</b> (speed) &bull; <b style="color:#ffd030">SHIELD</b> (invincible) &bull; <b style="color:#ff8020">BOOM</b> (shockwave)<br>
+    Survive every wave. Beat MEGA BOB.
   </div>
 </div>
 

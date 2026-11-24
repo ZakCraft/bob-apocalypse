@@ -338,8 +338,10 @@ const keys = {};
 let yaw = Math.PI * 0.25, pitch = 0.35;
 const enemies = [], packs = [];
 
-const player = { fighter: null, hp: 100, max: 100, vel: new THREE.Vector3(), vy: 0, face: 0, atk: null, alt: 0, inv: 0, block: false, dead: false, flashT: 0, grounded: true };
+const player = { fighter: null, buffs: { rage: 0, speed: 0, shield: 0 }, hp: 100, max: 100, vel: new THREE.Vector3(), vy: 0, face: 0, atk: null, alt: 0, inv: 0, block: false, dead: false, flashT: 0, grounded: true };
 player.fighter = makeFighter({ skin: 0xf0c090, shirt: 0x2f6fe0, pants: 0x1c2a55, scale: 1 });
+const shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffd030, transparent: true, opacity: 0.28, depthWrite: false }));
+shieldMesh.position.y = 1.2; shieldMesh.visible = false; player.fighter.g.add(shieldMesh);
 
 const TYPES = {
   bob:   { name: 'BOB',        hp: 40,  spd: 3.2, dmg: 8,  scale: 1.0, score: 100,  windup: 0.55, col: '#ffffff' },
@@ -363,11 +365,54 @@ function spawnEnemy(typeKey) {
   enemies.push(e);
   burst(f.g.position.clone().setY(1), 0xffaa40, 10, 3);
 }
-function dropPack(pos) {
+/* ---------- powerups ---------- */
+const POWER = {
+  heal:   { color: 0x40ff60, tag: 'HEAL',   text: '+40 HEALTH',          w: 30 },
+  rage:   { color: 0xff3030, tag: 'RAGE',   text: 'RAGE! DOUBLE DAMAGE', w: 20, dur: 10 },
+  speed:  { color: 0x30c0ff, tag: 'TURBO',  text: 'TURBO! SUPER SPEED',  w: 20, dur: 10 },
+  shield: { color: 0xffd030, tag: 'SHIELD', text: 'SHIELD! INVINCIBLE',  w: 15, dur: 7 },
+  nuke:   { color: 0xff8020, tag: 'BOOM',   text: 'SHOCKWAVE!',          w: 10 },
+};
+const shocks = [];
+function pickPower() {
+  let r = Math.random() * Object.values(POWER).reduce((s, p) => s + p.w, 0);
+  for (const k in POWER) { r -= POWER[k].w; if (r <= 0) return k; }
+  return 'heal';
+}
+function dropPack(pos, type) {
+  const P = POWER[type];
   const g = new THREE.Group();
-  mesh(new THREE.BoxGeometry(0.9, 0.3, 0.3), new THREE.MeshBasicMaterial({ color: 0x40ff60 }), 0, 0, 0, g, false);
-  mesh(new THREE.BoxGeometry(0.3, 0.9, 0.3), new THREE.MeshBasicMaterial({ color: 0x40ff60 }), 0, 0, 0, g, false);
+  g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 1), new THREE.MeshBasicMaterial({ color: P.color })));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 8, 24), new THREE.MeshBasicMaterial({ color: P.color, transparent: true, opacity: 0.8 }));
+  ring.rotation.x = Math.PI / 2; g.add(ring);
+  const tag = labelSprite(P.tag, '#' + P.color.toString(16).padStart(6, '0')); tag.position.y = 1.0; g.add(tag);
+  g.userData = { type, life: 20 };
   g.position.set(pos.x, 1.0, pos.z); scene.add(g); packs.push(g);
+}
+function toast(txt, color) {
+  const t = $('toast'); t.textContent = txt; t.style.color = '#' + color.toString(16).padStart(6, '0');
+  t.style.opacity = 1; G.toastT = 1.6;
+}
+function shockwave() {
+  const pp = player.fighter.g.position;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.f.g.position.x - pp.x, dz = e.f.g.position.z - pp.z, d = Math.hypot(dx, dz);
+    if (d < 12) damageEnemy(e, 35, dx / (d || 1), dz / (d || 1), 16, 0.7);
+  }
+  G.shake = 0.9; S.heavy();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color: 0xff9030, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(pp.x, 0.15, pp.z); scene.add(ring); shocks.push({ m: ring, t: 0 });
+}
+function collectPower(g) {
+  const type = g.userData.type, P = POWER[type];
+  scene.remove(g);
+  burst(g.position.clone(), P.color, 16, 4);
+  S.pick();
+  if (type === 'heal') player.hp = Math.min(player.max, player.hp + 40);
+  else if (type === 'nuke') shockwave();
+  else player.buffs[type] = P.dur;
+  toast(P.text, P.color);
 }
 
 function buildWave(n) {
@@ -397,6 +442,9 @@ function resetGame() {
   packs.length = 0;
   Object.assign(G, { wave: 0, score: 0, kills: 0, queue: [], waveWait: 0, pending: false, shake: 0, combo: 0, comboT: 0 });
   Object.assign(player, { hp: 100, atk: null, inv: 0, block: false, dead: false, vy: 0, grounded: true });
+  player.buffs.rage = player.buffs.speed = player.buffs.shield = 0; shieldMesh.visible = false;
+  for (const s of shocks) scene.remove(s.m);
+  shocks.length = 0;
   player.vel.set(0, 0, 0);
   player.fighter.g.position.set(0, 0, 0);
   player.fighter.g.rotation.x = 0;
@@ -509,12 +557,15 @@ function killEnemy(e) {
   G.kills++; G.score += Math.round(e.t.score * (1 + Math.min(G.combo, 20) * 0.05));
   burst(e.f.g.position.clone().setY(1.2 * e.t.scale), 0xff5a2a, 18, 5);
   scene.remove(e.bar); scene.remove(e.label);
-  if (e.t.name === 'MEGA BOB' || Math.random() < 0.14) dropPack(e.f.g.position);
+  const dp = e.f.g.position;
+  if (e.t.name === 'MEGA BOB') { dropPack(dp, 'heal'); dropPack({ x: dp.x + 1.6, z: dp.z }, pickPower()); }
+  else if (Math.random() < 0.22) dropPack(dp, pickPower());
   S.die();
 }
 function hurtPlayer(dmg, from) {
   if (player.inv > 0 || player.dead) return;
   const pp = player.fighter.g.position;
+  if (player.buffs.shield > 0) { player.inv = 0.15; burst(pp.clone().setY(1.4), 0xffd030, 5, 3); S.block(); return; }
   let dx = pp.x - from.x, dz = pp.z - from.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
   const front = (-dx * Math.sin(player.face) - dz * Math.cos(player.face)) > 0;
   if (player.block && front) {
@@ -587,7 +638,7 @@ function updatePlayer(dt) {
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   let mx = Math.cos(yaw) * ix - Math.sin(yaw) * iz, mz = -Math.sin(yaw) * ix - Math.cos(yaw) * iz;
   const ml = Math.hypot(mx, mz);
-  let speed = player.block ? 3 : player.atk ? 3.2 : 7.5;
+  let speed = (player.block ? 3 : player.atk ? 3.2 : 7.5) * (player.buffs.speed > 0 ? 1.55 : 1);
   if (ml > 0) {
     mx /= ml; mz /= ml;
     const k = 1 - Math.exp(-14 * dt);
@@ -605,6 +656,9 @@ function updatePlayer(dt) {
   }
   pushOut(pos, 0.5);
   if (player.inv > 0) player.inv -= dt;
+  for (const k of ['rage', 'speed', 'shield']) if (player.buffs[k] > 0) player.buffs[k] = Math.max(0, player.buffs[k] - dt);
+  shieldMesh.visible = player.buffs.shield > 0 && !(player.buffs.shield < 2 && Math.floor(G.time * 8) % 2);
+  shieldMesh.scale.setScalar(1 + Math.sin(G.time * 6) * 0.04);
   if (player.flashT > 0) { player.flashT -= dt; if (player.flashT <= 0) flash(f, false); }
 
   // attacks
@@ -619,7 +673,7 @@ function updatePlayer(dt) {
         if (e.dead) continue;
         const dx = e.f.g.position.x - pos.x, dz = e.f.g.position.z - pos.z, d = Math.hypot(dx, dz);
         if (d < A.a.range + e.radius && (dx * fx + dz * fz) / (d || 1) > 0.25 && Math.abs(e.f.g.position.y - pos.y) < 2.5) {
-          damageEnemy(e, A.a.dmg, dx / (d || 1), dz / (d || 1), A.a.kb, A.a.stun); any = true;
+          damageEnemy(e, A.a.dmg * (player.buffs.rage > 0 ? 2 : 1), dx / (d || 1), dz / (d || 1), A.a.kb, A.a.stun); any = true;
         }
       }
     }
@@ -736,11 +790,19 @@ function updateMisc(dt) {
     const g = packs[i];
     g.rotation.y += dt * 2.5; g.position.y = 1 + Math.sin(G.time * 3 + i) * 0.15;
     const pp = player.fighter.g.position;
-    if (!player.dead && Math.hypot(pp.x - g.position.x, pp.z - g.position.z) < 1.4) {
-      player.hp = Math.min(player.max, player.hp + 30); scene.remove(g); packs.splice(i, 1); S.pick();
-      burst(g.position.clone(), 0x40ff60, 12, 3);
+    g.userData.life -= dt;
+    g.visible = g.userData.life > 4 || Math.floor(G.time * 8) % 2 === 0;
+    if (g.userData.life <= 0) { scene.remove(g); packs.splice(i, 1); continue; }
+    if (!player.dead && Math.hypot(pp.x - g.position.x, pp.z - g.position.z) < 1.5) {
+      packs.splice(i, 1); collectPower(g);
     }
   }
+  for (let i = shocks.length - 1; i >= 0; i--) {
+    const s = shocks[i]; s.t += dt;
+    s.m.scale.setScalar(1 + s.t * 20); s.m.material.opacity = Math.max(0, 0.8 * (1 - s.t / 0.6));
+    if (s.t > 0.6) { scene.remove(s.m); shocks.splice(i, 1); }
+  }
+  if (G.toastT > 0) { G.toastT -= dt; if (G.toastT <= 0) $('toast').style.opacity = 0; }
   fires.forEach((f, i) => { f.scale.set(1 + Math.sin(G.time * 12 + i) * 0.15, 1 + Math.sin(G.time * 9 + i * 2) * 0.3, 1); });
   const a = embers.geometry.attributes.position;
   for (let i = 0; i < EMB; i++) {
@@ -757,6 +819,10 @@ function updateHUD() {
   $('hpfill').style.width = pct + '%';
   $('hpfill').style.background = pct > 50 ? 'linear-gradient(#5fe36a,#27a834)' : pct > 25 ? 'linear-gradient(#ffd24a,#d8a010)' : 'linear-gradient(#ff5a4a,#c01a10)';
   $('hp').textContent = Math.ceil(player.hp);
+  const b = player.buffs;
+  $('buffs').innerHTML = (b.rage > 0 ? '<span style="color:#ff6060">RAGE ' + Math.ceil(b.rage) + 's</span>' : '') +
+    (b.speed > 0 ? '<span style="color:#50d0ff">TURBO ' + Math.ceil(b.speed) + 's</span>' : '') +
+    (b.shield > 0 ? '<span style="color:#ffd030">SHIELD ' + Math.ceil(b.shield) + 's</span>' : '');
   $('score').textContent = G.score;
   const left = enemies.filter(e => !e.dead).length + G.queue.length;
   $('left').textContent = left ? left + ' BOBS LEFT' : '';
