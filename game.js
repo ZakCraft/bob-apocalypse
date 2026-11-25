@@ -686,11 +686,82 @@ function begin() {
 $('start').onclick = begin;
 $('again').onclick = begin;
 
+/* ---------- touch controls (phones / tablets) ---------- */
+const T = { x: 0, y: 0, block: false };   // joystick x/y (y>0 = forward), block held
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || matchMedia('(pointer:coarse)').matches;
+if (IS_TOUCH) {
+  document.body.classList.add('touch');
+  const cv = renderer.domElement;
+  const stick = $('joy'), knob = $('knob');
+  let joyId = null, jcx = 0, jcy = 0, lookId = null, lx = 0, ly = 0;
+  const R = 55;
+  const setStick = (cx, cy) => {
+    let dx = cx - jcx, dy = cy - jcy; const d = Math.hypot(dx, dy);
+    if (d > R) { dx *= R / d; dy *= R / d; }
+    T.x = dx / R; T.y = -dy / R;
+    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  };
+  const endStick = () => { joyId = null; T.x = T.y = 0; knob.style.transform = 'translate(0,0)'; stick.classList.remove('on'); };
+  stick.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (joyId !== null) return;
+    const t = e.changedTouches[0]; joyId = t.identifier;
+    const r = stick.getBoundingClientRect();
+    // joystick centre sits where the finger first lands (clamped inside the zone)
+    jcx = clamp(t.clientX, r.left + R, r.right - R); jcy = clamp(t.clientY, r.top + R, r.bottom - R);
+    stick.style.setProperty('--bx', (jcx - r.left) + 'px'); stick.style.setProperty('--by', (jcy - r.top) + 'px');
+    stick.classList.add('on'); setStick(t.clientX, t.clientY);
+  }, { passive: false });
+  stick.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) if (t.identifier === joyId) setStick(t.clientX, t.clientY);
+  }, { passive: false });
+  const stickEnd = e => { for (const t of e.changedTouches) if (t.identifier === joyId) endStick(); };
+  stick.addEventListener('touchend', stickEnd); stick.addEventListener('touchcancel', stickEnd);
+
+  // drag anywhere on the 3D view to look around
+  cv.addEventListener('touchstart', e => {
+    if (G.state !== 'play' || lookId !== null) return;
+    const t = e.changedTouches[0]; lookId = t.identifier; lx = t.clientX; ly = t.clientY;
+  }, { passive: true });
+  cv.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) if (t.identifier === lookId) {
+      yaw -= (t.clientX - lx) * 0.006;
+      pitch = clamp(pitch + (t.clientY - ly) * 0.004, 0.02, 1.0);
+      lx = t.clientX; ly = t.clientY;
+    }
+  }, { passive: false });
+  const lookEnd = e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
+  cv.addEventListener('touchend', lookEnd); cv.addEventListener('touchcancel', lookEnd);
+
+  const press = (id, fn, up) => {
+    const b = $(id);
+    b.addEventListener('touchstart', e => { e.preventDefault(); b.classList.add('down'); if (G.state === 'play') fn(); }, { passive: false });
+    const end = e => { e.preventDefault(); b.classList.remove('down'); if (up) up(); };
+    b.addEventListener('touchend', end, { passive: false }); b.addEventListener('touchcancel', end, { passive: false });
+  };
+  press('tAtk', () => startAttack('punch'));
+  press('tKick', () => startAttack('kick'));
+  press('tTool', () => useTool());
+  press('tJump', () => { if (player.grounded && !player.dead) { player.vy = 9.5; player.grounded = false; sfx(400, 0.12, 'triangle', 0.05, 200); } });
+  press('tBlock', () => { T.block = true; }, () => { T.block = false; });
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('dblclick', e => e.preventDefault());
+  // try fullscreen on first start (ignored where unsupported, e.g. iPhone Safari)
+  $('start').addEventListener('click', () => {
+    const el = document.documentElement;
+    try { (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); } catch (_) {}
+    try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {}
+  });
+}
+
 /* ---------- pause ---------- */
 function pauseGame() {
   if (G.state !== 'play') return;
   G.state = 'paused';
   for (const k in keys) keys[k] = false;
+  T.x = T.y = 0; T.block = false;
   $('pause').style.display = 'flex';
   if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
 }
@@ -828,8 +899,8 @@ function updatePlayer(dt) {
   if (keys.ArrowUp) pitch = clamp(pitch - 1.2 * dt, 0.02, 1);
   if (keys.ArrowDown) pitch = clamp(pitch + 1.2 * dt, 0.02, 1);
 
-  player.block = !!(keys.ShiftLeft || keys.ShiftRight || keys.KeyL) && !player.atk;
-  const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  player.block = !!(keys.ShiftLeft || keys.ShiftRight || keys.KeyL || T.block) && !player.atk;
+  const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + T.x, iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) + T.y;
   let mx = Math.cos(yaw) * ix - Math.sin(yaw) * iz, mz = -Math.sin(yaw) * ix - Math.cos(yaw) * iz;
   const ml = Math.hypot(mx, mz);
   let speed = (player.block ? 3 : player.atk ? 3.2 : 7.5) * (player.buffs.speed > 0 ? 1.55 : 1);
