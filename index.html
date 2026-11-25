@@ -101,7 +101,8 @@
   <h1>BOB APOCALYPSE</h1>
   <h2>THE TOWN IS OVERRUN. THEY ARE ALL NAMED BOB.</h2>
   <button id="start">FIGHT!</button>
-  <div style="margin-top:10px;font:12px Arial,sans-serif;opacity:.6">build 8 &mdash; phone &amp; tablet touch controls (if you don't see "build 8", hard refresh with Ctrl+F5)</div>
+  <button id="readstory" style="margin-top:14px;font-size:18px;padding:6px 24px;background:#444;box-shadow:0 4px 0 #111">READ THE STORY</button>
+  <div style="margin-top:10px;font:12px Arial,sans-serif;opacity:.6">build 9 &mdash; backstory added (if you don't see "build 9", hard refresh with Ctrl+F5)</div>
   <div class="controls">
     <span class="mob" style="display:none"><b>TOUCH:</b> left thumb = move stick &bull; drag the screen to look &bull; <b>SWING</b> / <b>KICK</b> / <b>JUMP</b> / <b>BLOCK</b> (hold) / <b>TOOL</b> buttons on the right. Best in landscape.<br></span>
     <b>WASD</b> move &nbsp;&bull;&nbsp; <b>Mouse</b> look (or <b>Q/E</b>, arrows) &nbsp;&bull;&nbsp; <b>Space</b> jump<br>
@@ -113,6 +114,20 @@
     Watch the sky: <b style="color:#d0b0ff">FLYING BOBS</b> circle overhead, then dive-bomb in a straight line. Sidestep the dive, then smack them.<br>
     Survive every wave. Beat MEGA BOB.
   </div>
+</div>
+
+<div id="story" class="overlay" style="display:none;z-index:8">
+  <h1 style="font-size:clamp(30px,6vw,64px)">HOW IT STARTED</h1>
+  <div class="controls" style="max-width:640px;font-size:17px;line-height:1.6;text-align:left;margin-top:14px;max-height:62vh;overflow:auto;touch-action:pan-y">
+    There was once a quiet little town, and in it lived one ordinary man named <b>Bob</b>.<br><br>
+    Bob was lonely. He wanted friends, so he built a cloning machine in his basement and made a copy of himself. Then another. Then <b>hundreds</b>.<br><br>
+    The clones all looked like Bob. They all sounded like Bob. They were all named Bob. And for a while, it was fine.<br><br>
+    But the original Bob wanted more. He fed himself to his own machine, again and again, until he grew into something huge and angry: <b style="color:#ff6a40">MEGA BOB</b>.<br><br>
+    Now he rules every clone. His Bobs have crawled out of the basement, grown wings, and taken over the whole town. Nobody is left but you.<br><br>
+    Grab a baseball bat. Fight every wave. Take down <b style="color:#ff6a40">MEGA BOB</b> and end the apocalypse.
+  </div>
+  <button id="storygo" style="margin-top:20px">FIGHT!</button>
+  <button id="storyback" style="margin-top:12px;font-size:18px;padding:6px 24px;background:#444;box-shadow:0 4px 0 #111">BACK</button>
 </div>
 
 <div id="pause" class="overlay" style="display:none">
@@ -138,6 +153,6 @@
   window.addEventListener('error',function(e){showErr('Error: '+e.message+(e.lineno?' (line '+e.lineno+')':''));});
   if(!window.THREE)showErr('Three.js failed to load (no internet, or the CDN is blocked). The game needs it.');
 </script>
-<script src="game.js?v=8"></script>
+<script src="game.js?v=9"></script>
 </body>
 </html>

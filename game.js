@@ -607,7 +607,7 @@ function startWave() {
   G.queue = buildWave(G.wave);
   G.spawnT = 0.5;
   $('wavenum').textContent = 'WAVE ' + G.wave;
-  showBanner(G.wave % 5 === 0 ? 'WAVE ' + G.wave + ' - MEGA BOB!' : 'WAVE ' + G.wave);
+  showBanner(G.wave % 5 === 0 ? 'WAVE ' + G.wave + ' - THE ORIGINAL BOB!' : 'WAVE ' + G.wave);
   S.wave();
   { // a free tool crate somewhere in town each wave
     const cp = { x: rand(-24, 24), z: rand(-24, 24) };
@@ -683,7 +683,13 @@ function begin() {
   resetGame();
   try { renderer.domElement.requestPointerLock(); } catch (_) {}
 }
-$('start').onclick = begin;
+// backstory: shown the first time you press FIGHT (and any time from the menu)
+function seenStory() { try { return localStorage.getItem('bobStorySeen') === '1'; } catch (_) { return false; } }
+function showStory() { $('story').style.display = 'flex'; }
+$('start').onclick = () => { if (seenStory()) begin(); else showStory(); };
+$('readstory').onclick = showStory;
+$('storygo').onclick = () => { try { localStorage.setItem('bobStorySeen', '1'); } catch (_) {} $('story').style.display = 'none'; begin(); };
+$('storyback').onclick = () => { try { localStorage.setItem('bobStorySeen', '1'); } catch (_) {} $('story').style.display = 'none'; };
 $('again').onclick = begin;
 
 /* ---------- touch controls (phones / tablets) ---------- */
