@@ -9,7 +9,8 @@ function turnToward(a, b, rate) { return a + clamp(angDiff(a, b), -rate, rate); 
 /* ---------- renderer / scene ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const MOBILE = matchMedia('(pointer:coarse)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -42,7 +43,7 @@ scene.add(new THREE.HemisphereLight(0xffc9a0, 0x3a2418, 0.95));
 const sun = new THREE.DirectionalLight(0xffa060, 1.1);
 sun.position.set(-30, 45, 25);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -50, right: 50, top: 50, bottom: -50, near: 1, far: 150 });
 sun.shadow.camera.updateProjectionMatrix();
 scene.add(sun);
@@ -265,6 +266,13 @@ function makeFighter(o) {
   g.scale.setScalar(o.scale || 1);
   scene.add(g);
   return f;
+}
+// free GPU memory of a removed object (every Bob builds its own meshes, which adds up over long games and on phones)
+function disposeTree(o) {
+  o.traverse(c => {
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+  });
 }
 function flash(f, on) { for (const m of f.mats) m.emissive.setHex(on ? 0xff2200 : 0x000000); }
 
@@ -624,7 +632,11 @@ function startWave() {
 }
 
 function resetGame() {
-  for (const e of enemies) { scene.remove(e.f.g); scene.remove(e.bar); scene.remove(e.label); }
+  for (const e of enemies) {
+    scene.remove(e.f.g); disposeTree(e.f.g);
+    if (!e.dead) { scene.remove(e.bar); scene.remove(e.label); disposeTree(e.bar); disposeTree(e.label); }
+  }
+  T.x = T.y = 0; T.block = false;
   enemies.length = 0;
   for (const p of packs) scene.remove(p);
   packs.length = 0;
@@ -665,8 +677,10 @@ addEventListener('mousemove', e => {
     pitch = clamp(pitch + e.movementY * 0.002, 0.02, 1.0);
   }
 });
+renderer.domElement.addEventListener('touchstart', () => { G.lastTouch = performance.now(); }, { passive: true });
 renderer.domElement.addEventListener('mousedown', e => {
   if (G.state !== 'play') return;
+  if (performance.now() - (G.lastTouch || -1e9) < 800) return;   // ignore the fake mouse click a phone sends after a tap/drag
   if (document.pointerLockElement !== renderer.domElement && renderer.domElement.requestPointerLock) {
     try { renderer.domElement.requestPointerLock(); } catch (_) {}
   }
@@ -827,7 +841,7 @@ function killEnemy(e) {
   e.dead = true; e.deadT = 0;
   G.kills++; G.score += Math.round(e.t.score * (1 + Math.min(G.combo, 20) * 0.05));
   burst(e.f.g.position.clone().setY(1.2 * e.t.scale), 0xff5a2a, 18, 5);
-  scene.remove(e.bar); scene.remove(e.label);
+  scene.remove(e.bar); scene.remove(e.label); disposeTree(e.bar); disposeTree(e.label);
   const dp = e.f.g.position;
   if (e.t.name === 'MEGA BOB') { dropPack(dp, 'heal'); dropPack({ x: dp.x + 1.6, z: dp.z }, pickDrop()); dropPack({ x: dp.x - 1.6, z: dp.z }, 'upgrade', 40); }
   else if (Math.random() < 0.22) dropPack(dp, pickDrop());
@@ -855,7 +869,9 @@ function endGame() {
   player.dead = true; G.state = 'over';
   S.die();
   $('final').innerHTML = 'You reached <b>Wave ' + G.wave + '</b><br>Bobs defeated: <b>' + G.kills + '</b> &nbsp;|&nbsp; Score: <b>' + G.score + '</b>';
+  T.x = T.y = 0; T.block = false;
   setTimeout(() => {
+    if (G.state !== 'over') return;   // already restarted
     if (document.exitPointerLock) document.exitPointerLock();
     $('over').style.display = 'flex';
   }, 1400);
@@ -973,7 +989,7 @@ function updateEnemies(dt) {
       pos.x += e.vel.x * dt; pos.z += e.vel.z * dt; e.vel.multiplyScalar(Math.max(0, 1 - 6 * dt));
       if (pos.y > 0 && e.deadT < 1.2) pos.y = Math.max(0, pos.y - dt * 14);
       else if (e.deadT > 1.2) pos.y -= dt * 1.5;
-      if (e.deadT > 2.2) { scene.remove(g); enemies.splice(i, 1); }
+      if (e.deadT > 2.2) { scene.remove(g); disposeTree(g); enemies.splice(i, 1); }
       continue;
     }
     const dx = pp.x - pos.x, dz = pp.z - pos.z, dist = Math.hypot(dx, dz) || 0.001;
