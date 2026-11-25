@@ -102,7 +102,7 @@
   <h2>THE TOWN IS OVERRUN. THEY ARE ALL NAMED BOB.</h2>
   <button id="start">FIGHT!</button>
   <button id="readstory" style="margin-top:14px;font-size:18px;padding:6px 24px;background:#444;box-shadow:0 4px 0 #111">READ THE STORY</button>
-  <div style="margin-top:10px;font:12px Arial,sans-serif;opacity:.6">build 10 &mdash; bug fixes (if you don't see "build 10", hard refresh with Ctrl+F5)</div>
+  <div style="margin-top:10px;font:12px Arial,sans-serif;opacity:.6">build 11 &mdash; final boss ending (if you don't see "build 11", hard refresh with Ctrl+F5)</div>
   <div class="controls">
     <span class="mob" style="display:none"><b>TOUCH:</b> left thumb = move stick &bull; drag the screen to look &bull; <b>SWING</b> / <b>KICK</b> / <b>JUMP</b> / <b>BLOCK</b> (hold) / <b>TOOL</b> buttons on the right. Best in landscape.<br></span>
     <b>WASD</b> move &nbsp;&bull;&nbsp; <b>Mouse</b> look (or <b>Q/E</b>, arrows) &nbsp;&bull;&nbsp; <b>Space</b> jump<br>
@@ -112,7 +112,7 @@
     You start with a <b>BASEBALL BAT</b>. Grab gold <b style="color:#ffdd33">UPGRADE</b> orbs (every 2nd wave, and from MEGA BOB):<br>
     Bat &rarr; <b>Katana</b> &rarr; <b>Battle Axe</b> &rarr; <b>Chainsaw</b> &rarr; <b>Energy Sword</b><br>
     Watch the sky: <b style="color:#d0b0ff">FLYING BOBS</b> circle overhead, then dive-bomb in a straight line. Sidestep the dive, then smack them.<br>
-    Survive every wave. Beat MEGA BOB.
+    <b>Survive 10 waves.</b> On the <b style="color:#ff6a40">FINAL WAVE</b>, MEGA BOB appears. Find him and kill him to end the apocalypse!
   </div>
 </div>
 
@@ -124,7 +124,7 @@
     The clones all looked like Bob. They all sounded like Bob. They were all named Bob. And for a while, it was fine.<br><br>
     But the original Bob wanted more. He fed himself to his own machine, again and again, until he grew into something huge and angry: <b style="color:#ff6a40">MEGA BOB</b>.<br><br>
     Now he rules every clone. His Bobs have crawled out of the basement, grown wings, and taken over the whole town. Nobody is left but you.<br><br>
-    Grab a baseball bat. Fight every wave. Take down <b style="color:#ff6a40">MEGA BOB</b> and end the apocalypse.
+    Grab a baseball bat. Survive 10 waves. On the final wave, <b style="color:#ff6a40">MEGA BOB</b> comes for you. Kill him and the apocalypse ends.
   </div>
   <button id="storygo" style="margin-top:20px">FIGHT!</button>
   <button id="storyback" style="margin-top:12px;font-size:18px;padding:6px 24px;background:#444;box-shadow:0 4px 0 #111">BACK</button>
@@ -136,6 +136,13 @@
   <button id="resume">RESUME</button>
   <button id="restart" style="margin-top:16px;font-size:22px;padding:8px 32px;background:#444;box-shadow:0 5px 0 #111">RESTART</button>
   <div class="controls"><b>P</b> or <b>Esc</b> pause / resume</div>
+</div>
+
+<div id="win" class="overlay" style="display:none">
+  <h1 style="color:#ffd24a;text-shadow:0 6px 0 #6a4a00,0 0 40px #ffb000">THE APOCALYPSE IS OVER</h1>
+  <h2>MEGA BOB IS DEFEATED. THE CLONES FADE AWAY. THE TOWN IS SAFE.</h2>
+  <div id="winfinal" style="font-size:26px;margin-bottom:22px;line-height:1.5"></div>
+  <button id="winagain">PLAY AGAIN</button>
 </div>
 
 <div id="over" class="overlay">
@@ -153,6 +160,6 @@
   window.addEventListener('error',function(e){showErr('Error: '+e.message+(e.lineno?' (line '+e.lineno+')':''));});
   if(!window.THREE)showErr('Three.js failed to load (no internet, or the CDN is blocked). The game needs it.');
 </script>
-<script src="game.js?v=10"></script>
+<script src="game.js?v=11"></script>
 </body>
 </html>

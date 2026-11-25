@@ -606,16 +606,20 @@ function buildWave(n) {
     q.push(n >= 3 && r < 0.15 ? 'big' : n >= 2 && r < 0.35 ? 'fast' : r > 0.78 ? 'flyer' : 'bob');
   }
   if (n <= 2) q[0] = 'flyer';   // early waves open with a Flying Bob so you can't miss it
-  if (n % 5 === 0) { q.length = Math.floor(q.length / 2); q.unshift('boss'); }
+  if (n === FINAL_WAVE) { q.length = Math.floor(q.length / 2); q.unshift('boss'); }          // MEGA BOB arrives with his clones
+  else if (n % 5 === 0) { q.length = Math.floor(q.length / 2); q.unshift('big', 'big'); }   // mid-way Bob brutes
   return q;
 }
+const FINAL_WAVE = 10;
 function showBanner(txt, secs = 2) { const b = $('banner'); b.textContent = txt; b.style.opacity = 1; G.bannerT = secs; }
 function startWave() {
   G.wave++;
   G.queue = buildWave(G.wave);
   G.spawnT = 0.5;
-  $('wavenum').textContent = 'WAVE ' + G.wave;
-  showBanner(G.wave % 5 === 0 ? 'WAVE ' + G.wave + ' - THE ORIGINAL BOB!' : 'WAVE ' + G.wave);
+  const fin = G.wave === FINAL_WAVE;
+  $('wavenum').textContent = fin ? 'FINAL WAVE' : 'WAVE ' + G.wave + ' / ' + FINAL_WAVE;
+  showBanner(fin ? 'FINAL WAVE - MEGA BOB!' : G.wave % 5 === 0 ? 'WAVE ' + G.wave + ' - BOB BRUTES!' : 'WAVE ' + G.wave, fin ? 3.5 : 2);
+  if (fin) setTimeout(() => { if (G.state === 'play') toast('KILL MEGA BOB TO END THE APOCALYPSE', 0xff6a40); }, 2500);
   S.wave();
   { // a free tool crate somewhere in town each wave
     const cp = { x: rand(-24, 24), z: rand(-24, 24) };
@@ -654,6 +658,7 @@ function resetGame() {
   player.face = 0;
   yaw = Math.PI; pitch = 0.35;
   $('over').style.display = 'none';
+  $('win').style.display = 'none';
   $('menu').style.display = 'none';
   $('hud').style.display = 'block';
   G.state = 'play';
@@ -705,6 +710,7 @@ $('readstory').onclick = showStory;
 $('storygo').onclick = () => { try { localStorage.setItem('bobStorySeen', '1'); } catch (_) {} $('story').style.display = 'none'; begin(); };
 $('storyback').onclick = () => { try { localStorage.setItem('bobStorySeen', '1'); } catch (_) {} $('story').style.display = 'none'; };
 $('again').onclick = begin;
+$('winagain').onclick = begin;
 
 /* ---------- touch controls (phones / tablets) ---------- */
 const T = { x: 0, y: 0, block: false };   // joystick x/y (y>0 = forward), block held
@@ -846,6 +852,28 @@ function killEnemy(e) {
   if (e.t.name === 'MEGA BOB') { dropPack(dp, 'heal'); dropPack({ x: dp.x + 1.6, z: dp.z }, pickDrop()); dropPack({ x: dp.x - 1.6, z: dp.z }, 'upgrade', 40); }
   else if (Math.random() < 0.22) dropPack(dp, pickDrop());
   S.die();
+  if (e.t.name === 'MEGA BOB') winGame(e);
+}
+// MEGA BOB is down: every clone collapses and the apocalypse is over
+function winGame(boss) {
+  if (G.state === 'won') return;
+  G.state = 'won'; G.queue = []; G.pending = false;
+  G.score += 5000;
+  for (const o of enemies) {
+    if (o.dead) continue;
+    o.dead = true; o.deadT = 0; o.hp = 0; G.kills++;
+    scene.remove(o.bar); scene.remove(o.label); disposeTree(o.bar); disposeTree(o.label);
+    burst(o.f.g.position.clone().setY(1.2 * o.t.scale), 0xffe060, 14, 5);
+  }
+  T.x = T.y = 0; T.block = false;
+  G.shake = 1; S.heavy();
+  showBanner('MEGA BOB IS DEFEATED!', 4);
+  $('winfinal').innerHTML = 'Bobs defeated: <b>' + G.kills + '</b> &nbsp;|&nbsp; Final score: <b>' + G.score + '</b>';
+  setTimeout(() => {
+    if (G.state !== 'won') return;
+    if (document.exitPointerLock) document.exitPointerLock();
+    $('win').style.display = 'flex';
+  }, 3500);
 }
 function hurtPlayer(dmg, from) {
   if (player.inv > 0 || player.dead) return;
